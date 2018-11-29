@@ -21,8 +21,11 @@ Manages access and connections to the Disberse Data Resources, and the Disberse 
 ### INSTALL
 
 git clone git@github.com:Disberse/disberse-bootnode.git
+
 cd disberse-bootnode
+
 npm install
+
 npm bootStraper
 
 Todo: There is configuration requirement to setup listening ipaddress and ports. 
