@@ -19,6 +19,7 @@ const defaultsDeep = require('@nodeutils/defaults-deep')
 
 const Circuit = require('libp2p-circuit')
 const multiaddr = require('multiaddr')
+const Catch = require('pull-catch')
 
 class MyBundle extends libp2p {
   constructor (_options) {
@@ -117,6 +118,7 @@ PeerInfo.create(directorId, (err, peerInfo) => {
         console.log(peerMap)
         console.log("sendPeerMap")
       }),
+      Catch(),
       pull.drain(()=>{})
     )
 
@@ -146,6 +148,7 @@ PeerInfo.create(directorId, (err, peerInfo) => {
         })
 */
       }),
+      Catch(),
       pull.drain(()=>{})
     )
   })
