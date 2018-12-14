@@ -20,6 +20,26 @@ const defaultsDeep = require('@nodeutils/defaults-deep')
 const Circuit = require('libp2p-circuit')
 const multiaddr = require('multiaddr')
 const Catch = require('pull-catch')
+const ethUtil = require('ethereumjs-util')
+
+const directorId = require('./director-id.json')
+/*
+const NodeRSA = require('node-rsa')
+PeerId.createFromPrivKey(directorId.privKey, (err, id) => {
+  console.log(id.toHexString())
+})
+*/
+/*
+const directorIdKeyData = "-----BEGIN PUBLIC KEY----- " + directorId.privKey + " -----END PUBLIC KEY-----";
+//console.log(directorIdKeyData)
+//process.exit()
+const directorIdKey = new NodeRSA()//directorIdKeyData)
+//directorIdKey.importKey(directorIdKeyData);
+*/
+
+const Web3 = require('web3')
+const web3_provider = "ws://10.0.0.10:8548"
+const web3 = new Web3(new Web3.providers.WebsocketProvider(web3_provider))
 
 class MyBundle extends libp2p {
   constructor (_options) {
@@ -45,6 +65,7 @@ class MyBundle extends libp2p {
         },
         EXPERIMENTAL: {
         // dht must be enabled
+          pubsub: true,
           dht: true
         }
       }
@@ -56,10 +77,107 @@ class MyBundle extends libp2p {
 
 let node
 
-var directorId = require('./director-id.json')
 
 let peerCheck = []
 let peerMap = []
+
+const listenForTxs = (node) => { 
+  node.pubsub.subscribe('disberse/txs',(msg) => {
+    console.log(msg.from, msg.data.toString())
+    let dataIn = msg.data.toString().split('::')
+    let vrs = dataIn[dataIn.length-1].split(',')
+    let data = dataIn[dataIn.length-2]
+//    console.log(dataIn)
+//    console.log(vrs)
+    let messageSigner = dataIn[1] 
+    let pubkey = ethUtil.ecrecover(
+      Buffer.from(data,'hex'), 
+      Number(vrs[0]), 
+      Buffer.from(vrs[1],'hex'), 
+      Buffer.from(vrs[2],'hex')
+    )
+//    console.log("pubkey: " + pubkey.toString('hex'))
+    console.log("messageSignerAddr: " + messageSigner)
+    console.log("signerAddr:        " + "0x" + ethUtil.publicToAddress(pubkey).toString('hex'))
+
+    if(messageSigner === "0x" + ethUtil.publicToAddress(pubkey).toString('hex')) {
+      console.log("Singnature is VALID")
+      console.log("get balance web3 " + dataIn[3])
+
+      if(dataIn[2] == 'balance') {
+        let balanceAddr = dataIn[3]
+        web3.eth.getBalance(balanceAddr, function(err, balance) {
+          if(err)
+            console.log(err)
+          else
+          {
+            console.log("Balance for " + balanceAddr + " is " + balance)
+//            msg.from
+//            console.log()
+            
+//console.log(directorId)
+//console.log(directorIdKey.exportKey())
+//console.log(directorIdKey.exportKey('public'))
+
+
+            PeerId.createFromPrivKey(directorId.privKey, (err, id) => {
+
+              const myPrivateKey = Buffer.from(id.toHexString().substr(4), 'hex')
+              const myPublicKey = ethUtil.privateToAddress(myPrivateKey).toString('hex')
+              const cmdData = `signer::${myPublicKey}::address::${balanceAddr}::balance::${balance}`
+              const data = ethUtil.sha3(cmdData)
+              const vrs = ethUtil.ecsign(data, myPrivateKey)
+            
+              console.log(cmdData)
+              console.log(data,vrs)
+
+              let sendToPeerId = PeerId.createFromB58String(msg.from)
+              console.log("id: " + sendToPeerId)
+              PeerInfo.create(sendToPeerId, (err, sendToPeerInfo) => {
+
+                node.dialProtocol(sendToPeerInfo, '/disberse/txReturn', (err, conn) => {
+                  if(err) console.log(err)
+   
+                  const message = (
+                    cmdData +
+                    "::" +
+                    data.toString('hex') +
+                    "::" +
+                    vrs.v +
+                    "," +
+                    vrs.r.toString('hex') +
+                    "," +
+                    vrs.s.toString('hex')
+                  )
+
+                  console.log("sending tx return")
+                  pull(
+                    pull.values([message]),
+                    conn
+                  )
+                })
+              })
+            })
+          }
+        })
+      }
+    } else
+      console.log("Singnature is INVALID")
+/*
+    pubkey = ethJSUtil.ecrecover(data, vrs.v, vrs.r, vrs.s)
+    console.log("incomming disberse/txs", "::" ,msg.from, "::", msg.data.toString())
+*/
+  },(err) => {
+    console.log("Listening on pubsub disberse/txs")
+  })
+
+  web3.eth.net.isListening(function(err,out){ 
+    if(err)
+      console.log(err)
+    else
+      console.log('Connected to web3 testnet')
+  })
+}
 
 PeerInfo.create(directorId, (err, peerInfo) => {
   peerInfo.multiaddrs.add('/dns4/eh1-15.eh7.co.uk/tcp/9998/wss')
@@ -96,6 +214,8 @@ PeerInfo.create(directorId, (err, peerInfo) => {
 
 
   node.handle('/peerMap', (protocol, conn) => {
+//console.log(conn)
+//    conn.on('error', (err) => {console.log(err)})
     console.log("/peerMap Send latest peerMap to dialer")
     console.log(peerMap)
     pull(
@@ -105,6 +225,7 @@ PeerInfo.create(directorId, (err, peerInfo) => {
   })
 
   node.handle('/register', (protocol, conn) => {
+//    conn.on('error', (err) => {console.log(err)})
     pull(
       conn,
       pull.map((data) => {
@@ -135,6 +256,7 @@ PeerInfo.create(directorId, (err, peerInfo) => {
   })
 
   node.handle('/message', (protocol, conn) => {
+//    conn.on('error', (err) => {console.log(err)})
     pull(
       conn,
       pull.map((data) => {
@@ -159,6 +281,7 @@ PeerInfo.create(directorId, (err, peerInfo) => {
     node.peerInfo.multiaddrs.forEach((ma) => {
       console.log("multiaddr -> " + ma.toString())
     })
+    listenForTxs(node)
   })
 
 })
