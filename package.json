@@ -23,6 +23,7 @@
     "libp2p-secio": "^0.10.1",
     "libp2p-spdy": "^0.12.1",
     "libp2p-tcp": "^0.13.0",
+    "libp2p-tls": "^0.1.0",
     "libp2p-webrtc-star": "^0.15.5",
     "libp2p-websockets": "^0.12.0",
     "node-rsa": "^1.0.2",
