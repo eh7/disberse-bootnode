@@ -1,6 +1,13 @@
 /* eslint-disable no-console */
 'use strict'
 
+process.setMaxListeners(10)
+console.log("MaxListeners: " + process.getMaxListeners())
+//console.log(process.setMaxListeners(0))
+//process.exit()
+
+const longjohn = require('longjohn')
+
 const contract = require('./contract')
 const lodash = require('lodash')
 
@@ -27,6 +34,8 @@ const Catch = require('pull-catch')
 const ethWallet = require('ethereumjs-wallet')
 const ethUtil = require('ethereumjs-util')
 const ethTx = require('ethereumjs-tx')
+
+require('./wsProxy.js')
 
 const directorId = require('./director-id.json')
 /*
@@ -396,6 +405,7 @@ const listenForTxs = (node) => {
 */
   },(err) => {
     console.log("Listening on pubsub disberse/txs")
+//    require('./wsProxy.js')
   })
 
   web3.eth.net.isListening(function(err,out){ 
@@ -445,6 +455,9 @@ PeerInfo.create(directorId, (err, peerInfo) => {
 //    conn.on('error', (err) => {console.log(err)})
     console.log("/peerMap Send latest peerMap to dialer")
     console.log(peerMap)
+    console.log("MaxListeners: " + process.getMaxListeners())
+    console.log("EventNames: " + process.eventNames())
+//    console.log("ConnListeners: " + process.listeners('peer:connect'))
     pull(
       pull.values(peerMap),
       conn
@@ -584,6 +597,8 @@ PeerInfo.create(directorId, (err, peerInfo) => {
   node.start((err)=>{
     if(err) console.log(err)
     console.log("Bootstraper started -> " + node.peerInfo.id.toB58String())
+    console.log("Thanks wsProxy.js multiaddr")
+    console.log("multiaddr -> " + "/dns4/demo.disberse.com/tcp/9997/wss/ipfs/" + node.peerInfo.id.toB58String())
     node.peerInfo.multiaddrs.forEach((ma) => {
       console.log("multiaddr -> " + ma.toString())
     })
